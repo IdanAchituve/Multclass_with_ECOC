@@ -167,8 +167,8 @@ def random_mat(x, y, x_val, y_val, iterations, reg_lambda, lr, num_classifiers):
 
     # training classifiers
     for curr_classifier in range(M.shape[1]):
-        first_class = list(np.argwhere(np.transpose(M)[curr_classifier, :] == 1.0))
-        second_class = list(np.argwhere(np.transpose(M)[curr_classifier, :] == -1.0))
+        first_class = np.argwhere(M[:, curr_classifier] == 1).flatten().tolist()
+        second_class = np.argwhere(M[:, curr_classifier] == -1).flatten().tolist()
 
         curr_x = np.asarray([ex for ex, ey in zip(x, y) if ey in first_class or ey in second_class])
         curr_y = np.asarray([ey for ex, ey in zip(x, y) if ey in first_class or ey in second_class])
@@ -226,4 +226,4 @@ if __name__ == '__main__':
 
     #  one_vs_all(x, y, x_val, y_val, iterations, reg_lambda, lr)
     # all_pairs(x, y, x_val, y_val, iterations, reg_lambda, lr)
-    random_mat(x, y, x_val, y_val, iterations, reg_lambda, lr, 10)
+    random_mat(x, y, x_val, y_val, iterations, reg_lambda, lr, 30)

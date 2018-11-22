@@ -6,8 +6,8 @@ import random
 import math
 import os
 
-np.random.seed(100)
-random.seed(100)
+#np.random.seed(100)
+#random.seed(100)
 
 
 def print_img(img_vec, prediction=None):
@@ -21,7 +21,7 @@ def print_img(img_vec, prediction=None):
 
 def svm_train(x, y, lbl_to_class, iterations=100, reg_lambda=0.001, lr=0.0001):
     m = len(x)
-    w = np.zeros(x[0].shape).astype(float).reshape(1,-1)  # initialize w to 0
+    w = np.zeros(x[0].shape).astype(float).reshape(1, -1)  # initialize w to 0
 
     for iter in range(iterations):
         idx = random.randint(0, m - 1)
@@ -110,8 +110,8 @@ def one_vs_all(x, y, x_val, y_val, iterations, reg_lambda, lr):
     np.savetxt('./predictions/test.onevall.ham.pred' + str('%.4f' % hamming_precision), hamming_predictions, delimiter=',')
     np.savetxt('./predictions/test.onevall.loss.pred' + str('%.4f' % loss_based_precision), loss_based_predictions, delimiter=',')
 
-    print("hamming_precision: " + str(hamming_precision))
-    print("loss_based_precision: " + str(loss_based_precision))
+    print("one-vs-all - hamming_precision: " + str(hamming_precision))
+    print("one-vs-all - loss_based_precision: " + str(loss_based_precision))
 
 
 def all_pairs(x, y, x_val, y_val, iterations, reg_lambda, lr):
@@ -153,16 +153,23 @@ def all_pairs(x, y, x_val, y_val, iterations, reg_lambda, lr):
     np.savetxt('./predictions/test.allpairs.ham.pred' + str('%.4f' % hamming_precision), hamming_predictions, delimiter=',')
     np.savetxt('./predictions/test.allpairs.loss.pred' + str('%.4f' % loss_based_precision), loss_based_predictions, delimiter=',')
 
-    print("hamming_precision: " + str(hamming_precision))
-    print("loss_based_precision: " + str(loss_based_precision))
+    print("all pairs - hamming_precision: " + str(hamming_precision))
+    print("all pairs - loss_based_precision: " + str(loss_based_precision))
 
 
 def random_mat(x, y, x_val, y_val, iterations, reg_lambda, lr, num_classifiers):
 
     # create matrix code - don't create matrix with all 0's
     M = np.zeros((4, num_classifiers))
-    while np.any(np.all(M == 0.0, axis=1)):
+    while np.any(np.all(M == 0.0, axis=0)):
         M = np.random.randint(-1, 2, (4, num_classifiers))
+    # create matrix code
+    # M = np.asarray([[1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 0.0, 0.0],
+    #                [-1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 0.0, 0.0, 1.0, 0.0],
+    #                [0.0, -1.0, 0.0, -1.0, 0.0, 1.0, -1.0, 1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0],
+    #                [0.0, 0.0, -1.0, 0.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, -1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0]
+    #                ])
+
     params = []
 
     # training classifiers
@@ -198,8 +205,8 @@ def random_mat(x, y, x_val, y_val, iterations, reg_lambda, lr, num_classifiers):
     np.savetxt('./predictions/test.randm.ham.pred' + str('%.4f' % hamming_precision), hamming_predictions, delimiter=',')
     np.savetxt('./predictions/test.randm.loss.pred' + str('%.4f' % loss_based_precision), loss_based_predictions, delimiter=',')
 
-    print("hamming_precision: " + str(hamming_precision))
-    print("loss_based_precision: " + str(loss_based_precision))
+    print("random - hamming_precision: " + str(hamming_precision))
+    print("random - loss_based_precision: " + str(loss_based_precision))
 
 
 if __name__ == '__main__':
@@ -213,7 +220,7 @@ if __name__ == '__main__':
     x, y = shuffle(x, y, random_state=1)
 
     # configurations
-    iterations = 1000
+    iterations = 3000
     reg_lambda = 0.1
     lr = 0.1
 
@@ -224,6 +231,6 @@ if __name__ == '__main__':
     # create directory for writing results
     os.makedirs("./predictions", exist_ok=True)
 
-    #  one_vs_all(x, y, x_val, y_val, iterations, reg_lambda, lr)
-    # all_pairs(x, y, x_val, y_val, iterations, reg_lambda, lr)
-    random_mat(x, y, x_val, y_val, iterations, reg_lambda, lr, 30)
+    one_vs_all(x, y, x_val, y_val, iterations, reg_lambda, lr)
+    all_pairs(x, y, x_val, y_val, iterations, reg_lambda, lr)
+    random_mat(x, y, x_val, y_val, iterations, reg_lambda, lr, 20)

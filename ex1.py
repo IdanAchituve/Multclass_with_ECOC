@@ -6,17 +6,24 @@ import random
 import math
 import os
 
-#np.random.seed(100)
-#random.seed(100)
+np.random.seed(100)
+random.seed(100)
 
 
-def print_img(img_vec, prediction=None):
+def print_img(img_vec, prediction=None, path=None, idx=0):
     img_vec *= 255. # multiply all cells by 255
     img_vec = img_vec.reshape((28, 28))  # reshape to 28x28
+
     if prediction is not None:
         plt.title('prediction is {prediction}'.format(prediction=prediction))
-    plt.imshow(img_vec, cmap='gray')
-    plt.show()
+
+    if not path:
+        plt.imshow(img_vec, cmap='gray')
+        plt.show()
+    else:
+        # save the image
+        plt.imsave(path + "/" + str(idx) + ".png", img_vec)
+        plt.close()
 
 
 def svm_train(x, y, lbl_to_class, iterations=100, reg_lambda=0.001, lr=0.0001):
@@ -77,25 +84,10 @@ def loss_based_decoding(prediction_matrix, M):
     return np.asarray(predicitons).astype(float)
 
 
-def one_vs_all(x, y, x_val, y_val, iterations, reg_lambda, lr):
+def validation(x_val, y_val, M, params, num_classifiers):
 
-    # create matrix code
-    M = np.asarray([[1.0, -1.0, -1.0, -1.0],
-                    [-1.0, 1.0, -1.0, -1.0],
-                    [-1.0, -1.0, 1.0, -1.0],
-                    [-1.0, -1.0, -1.0, 1.0]])
-    params = []
-
-    # training 4 classifiers corresponding to 4 classes
-    for curr_class in range(4):
-        # map each label to relevant class
-        lbl_to_class = {idx: val for idx, val in enumerate(M[curr_class])}
-        # train classifier
-        w = svm_train(x, y, lbl_to_class, iterations, reg_lambda, lr).reshape(-1, 1)
-        params.append(w)
-
-    # testing all classifiers - build matrix with dims: #examples X #classes
-    for curr_class in range(4):
+    # Validation: testing all classifiers - build matrix with dims: #examples X #classes
+    for curr_class in range(num_classifiers):
         class_conf = np.dot(x_val, params[curr_class])
         prediction_matrix = np.copy(class_conf) if curr_class == 0 else np.concatenate((prediction_matrix, class_conf), axis=1)
 
@@ -107,14 +99,53 @@ def one_vs_all(x, y, x_val, y_val, iterations, reg_lambda, lr):
     loss_based_predictions = loss_based_decoding(prediction_matrix, M)
     loss_based_precision = precision(loss_based_predictions, y_val)
 
-    np.savetxt('./predictions/test.onevall.ham.pred' + str('%.4f' % hamming_precision), hamming_predictions, delimiter=',')
-    np.savetxt('./predictions/test.onevall.loss.pred' + str('%.4f' % loss_based_precision), loss_based_predictions, delimiter=',')
-
-    print("one-vs-all - hamming_precision: " + str(hamming_precision))
-    print("one-vs-all - loss_based_precision: " + str(loss_based_precision))
+    return hamming_precision, loss_based_precision
 
 
-def all_pairs(x, y, x_val, y_val, iterations, reg_lambda, lr):
+def testing(x_test, M, params, num_classifiers):
+    # Validation: testing all classifiers - build matrix with dims: #examples X #classes
+    for curr_class in range(num_classifiers):
+        class_conf = np.dot(x_test, params[curr_class])
+        prediction_matrix = np.copy(class_conf) if curr_class == 0 else np.concatenate((prediction_matrix, class_conf), axis=1)
+
+    # hamming based decoding
+    hamming_predictions = hamming_decoding(prediction_matrix, M)
+
+    # loss based decoding
+    loss_based_predictions = loss_based_decoding(prediction_matrix, M)
+
+    return hamming_predictions, loss_based_predictions
+
+
+def one_vs_all(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr):
+
+    # create matrix code
+    M = np.asarray([[1.0, -1.0, -1.0, -1.0],
+                    [-1.0, 1.0, -1.0, -1.0],
+                    [-1.0, -1.0, 1.0, -1.0],
+                    [-1.0, -1.0, -1.0, 1.0]])
+    params = []
+
+    # Train: training 4 classifiers corresponding to 4 classes
+    for curr_class in range(4):
+        # map each label to relevant class
+        lbl_to_class = {idx: val for idx, val in enumerate(M[curr_class])}
+        # train classifier
+        w = svm_train(x, y, lbl_to_class, iterations, reg_lambda, lr).reshape(-1, 1)
+        params.append(w)
+
+    # validation and testing
+    hamming_precision_val, loss_based_precision_val = validation(x_val, y_val, M, params, 4)
+    hamming_predictions, loss_based_predictions = testing(x_test, M, params, 4)
+
+    print("one-vs-all - hamming_precision: " + str(hamming_precision_val))
+    print("one-vs-all - loss_based_precision: " + str(loss_based_precision_val))
+
+    np.savetxt(path + '/test.onevall.ham.pred' + str('%.4f' % hamming_precision_val), hamming_predictions, delimiter=',')
+    np.savetxt(path + '/test.onevall.loss.pred' + str('%.4f' % loss_based_precision_val), loss_based_predictions, delimiter=',')
+
+
+def all_pairs(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr):
 
     # create matrix code
     M = np.asarray([[1.0, 1.0, 1.0, 0.0, 0.0, 0.0],
@@ -137,32 +168,24 @@ def all_pairs(x, y, x_val, y_val, iterations, reg_lambda, lr):
         w = svm_train(curr_x, curr_y, lbl_to_class, iterations, reg_lambda, lr).reshape(-1, 1)
         params.append(w)
 
-    # testing all classifiers - build matrix with dims: #examples X #classifiers
-    for curr_classifier in range(M.shape[1]):
-        class_conf = np.dot(x_val, params[curr_classifier])
-        prediction_matrix = np.copy(class_conf) if curr_classifier == 0 else np.concatenate((prediction_matrix, class_conf), axis=1)
+    # validation and testing
+    hamming_precision_val, loss_based_precision_val = validation(x_val, y_val, M, params, 6)
+    hamming_predictions, loss_based_predictions = testing(x_test, M, params, 6)
 
-    # hamming based decoding
-    hamming_predictions = hamming_decoding(prediction_matrix, M)
-    hamming_precision = precision(hamming_predictions, y_val)
+    print("all_pairs - hamming_precision: " + str(hamming_precision_val))
+    print("all_pairs - loss_based_precision: " + str(loss_based_precision_val))
 
-    # loss based decoding
-    loss_based_predictions = loss_based_decoding(prediction_matrix, M)
-    loss_based_precision = precision(loss_based_predictions, y_val)
-
-    np.savetxt('./predictions/test.allpairs.ham.pred' + str('%.4f' % hamming_precision), hamming_predictions, delimiter=',')
-    np.savetxt('./predictions/test.allpairs.loss.pred' + str('%.4f' % loss_based_precision), loss_based_predictions, delimiter=',')
-
-    print("all pairs - hamming_precision: " + str(hamming_precision))
-    print("all pairs - loss_based_precision: " + str(loss_based_precision))
+    np.savetxt(path + '/test.allpairs.ham.pred' + str('%.4f' % hamming_precision_val), hamming_predictions, delimiter=',')
+    np.savetxt(path + '/test.allpairs.loss.pred' + str('%.4f' % loss_based_precision_val), loss_based_predictions, delimiter=',')
 
 
-def random_mat(x, y, x_val, y_val, iterations, reg_lambda, lr, num_classifiers):
+def random_mat(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr, num_classifiers):
 
     # create matrix code - don't create matrix with all 0's
     M = np.zeros((4, num_classifiers))
     while np.any(np.all(M == 0.0, axis=0)):
         M = np.random.randint(-1, 2, (4, num_classifiers))
+
     # create matrix code
     # M = np.asarray([[1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 0.0, 0.0],
     #                [-1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 0.0, 0.0, 1.0, 0.0],
@@ -189,24 +212,15 @@ def random_mat(x, y, x_val, y_val, iterations, reg_lambda, lr, num_classifiers):
         w = svm_train(curr_x, curr_y, lbl_to_class, iterations, reg_lambda, lr).reshape(-1, 1)
         params.append(w)
 
-    # testing all classifiers - build matrix with dims: #examples X #classifiers
-    for curr_classifier in range(M.shape[1]):
-        class_conf = np.dot(x_val, params[curr_classifier])
-        prediction_matrix = np.copy(class_conf) if curr_classifier == 0 else np.concatenate((prediction_matrix, class_conf), axis=1)
+    # validation and testing
+    hamming_precision_val, loss_based_precision_val = validation(x_val, y_val, M, params, num_classifiers)
+    hamming_predictions, loss_based_predictions = testing(x_test, M, params, num_classifiers)
 
-    # hamming based decoding
-    hamming_predictions = hamming_decoding(prediction_matrix, M)
-    hamming_precision = precision(hamming_predictions, y_val)
+    print("random - hamming_precision: " + str(hamming_precision_val))
+    print("random - loss_based_precision: " + str(loss_based_precision_val))
 
-    # loss based decoding
-    loss_based_predictions = loss_based_decoding(prediction_matrix, M)
-    loss_based_precision = precision(loss_based_predictions, y_val)
-
-    np.savetxt('./predictions/test.randm.ham.pred' + str('%.4f' % hamming_precision), hamming_predictions, delimiter=',')
-    np.savetxt('./predictions/test.randm.loss.pred' + str('%.4f' % loss_based_precision), loss_based_predictions, delimiter=',')
-
-    print("random - hamming_precision: " + str(hamming_precision))
-    print("random - loss_based_precision: " + str(loss_based_precision))
+    np.savetxt(path + '/test.randm.ham.pred' + str('%.4f' % hamming_precision_val), hamming_predictions, delimiter=',')
+    np.savetxt(path + '/test.randm.loss.pred' + str('%.4f' % loss_based_precision_val), loss_based_predictions, delimiter=',')
 
 
 if __name__ == '__main__':
@@ -219,18 +233,29 @@ if __name__ == '__main__':
     # suffle examples
     x, y = shuffle(x, y, random_state=1)
 
-    # configurations
-    iterations = 3000
-    reg_lambda = 0.1
-    lr = 0.1
-
     # load validation and test sets
-    x_val = np.concatenate((np.loadtxt("./code/x_test.txt"), np.loadtxt("./code/x_test_rep.txt")))
-    y_val = np.concatenate((np.loadtxt("./code/y_test.txt"), np.loadtxt("./code/y_test_rep.txt")))
+    x_val = np.concatenate((np.loadtxt("./code/x_val1.txt"), np.loadtxt("./code/x_val2.txt")))
+    y_val = np.concatenate((np.loadtxt("./code/y_val1.txt"), np.loadtxt("./code/y_val2.txt")))
 
-    # create directory for writing results
-    os.makedirs("./predictions", exist_ok=True)
+    x_test = np.loadtxt("./code/x4pred.txt")
 
-    one_vs_all(x, y, x_val, y_val, iterations, reg_lambda, lr)
-    all_pairs(x, y, x_val, y_val, iterations, reg_lambda, lr)
-    random_mat(x, y, x_val, y_val, iterations, reg_lambda, lr, 20)
+    exp_index = 0
+
+    # configurations
+    # iterations = 500
+    # reg_lambda = 0.1
+    # lr = 0.1
+
+    for iterations in range(5000, 10000, 1000):
+        for reg_lambda in [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2]:
+            for lr in [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2]:
+
+                # create directory for writing results
+                path = "./predictions/" + str(exp_index)
+                os.makedirs(path, exist_ok=True)
+
+                one_vs_all(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr)
+                all_pairs(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr)
+                random_mat(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr, 30)
+
+                exp_index += 1

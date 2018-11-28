@@ -5,9 +5,10 @@ import matplotlib.pyplot as plt
 import random
 import math
 import os
+import time
 
-np.random.seed(100)
-random.seed(100)
+#np.random.seed(100)
+#random.seed(100)
 
 
 def print_img(img_vec, prediction=None, path=None, idx=0):
@@ -99,7 +100,7 @@ def validation(x_val, y_val, M, params, num_classifiers):
     loss_based_predictions = loss_based_decoding(prediction_matrix, M)
     loss_based_precision = precision(loss_based_predictions, y_val)
 
-    return hamming_precision, loss_based_precision
+    return hamming_precision, loss_based_precision, prediction_matrix
 
 
 def testing(x_test, M, params, num_classifiers):
@@ -135,7 +136,7 @@ def one_vs_all(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr):
         params.append(w)
 
     # validation and testing
-    hamming_precision_val, loss_based_precision_val = validation(x_val, y_val, M, params, 4)
+    hamming_precision_val, loss_based_precision_val, _ = validation(x_val, y_val, M, params, 4)
     hamming_predictions, loss_based_predictions = testing(x_test, M, params, 4)
 
     print("one-vs-all - hamming_precision: " + str(hamming_precision_val))
@@ -169,7 +170,7 @@ def all_pairs(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr):
         params.append(w)
 
     # validation and testing
-    hamming_precision_val, loss_based_precision_val = validation(x_val, y_val, M, params, 6)
+    hamming_precision_val, loss_based_precision_val, _ = validation(x_val, y_val, M, params, 6)
     hamming_predictions, loss_based_predictions = testing(x_test, M, params, 6)
 
     print("all_pairs - hamming_precision: " + str(hamming_precision_val))
@@ -183,16 +184,12 @@ def random_mat(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr, num
 
     # create matrix code - don't create matrix with all 0's
     M = np.zeros((4, num_classifiers))
-    while np.any(np.all(M == 0.0, axis=0)):
+    while True:
         M = np.random.randint(-1, 2, (4, num_classifiers))
+        if np.all(np.any(M == 1.0, axis=0)) and np.all(np.any(M == -1.0, axis=0)):
+            break
 
-    # create matrix code
-    # M = np.asarray([[1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, -1.0, -1.0, -1.0, 1.0, 1.0, 1.0, 0.0, 0.0],
-    #                [-1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 0.0, 0.0, 1.0, 0.0],
-    #                [0.0, -1.0, 0.0, -1.0, 0.0, 1.0, -1.0, 1.0, -1.0, -1.0, -1.0, 1.0, -1.0, 0.0, 1.0, 0.0, 1.0, 1.0],
-    #                [0.0, 0.0, -1.0, 0.0, -1.0, -1.0, -1.0, -1.0, 1.0, -1.0, -1.0, -1.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0]
-    #                ])
-
+    print(M)
     params = []
 
     # training classifiers
@@ -213,7 +210,7 @@ def random_mat(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr, num
         params.append(w)
 
     # validation and testing
-    hamming_precision_val, loss_based_precision_val = validation(x_val, y_val, M, params, num_classifiers)
+    hamming_precision_val, loss_based_precision_val, prediction_matrix = validation(x_val, y_val, M, params, num_classifiers)
     hamming_predictions, loss_based_predictions = testing(x_test, M, params, num_classifiers)
 
     print("random - hamming_precision: " + str(hamming_precision_val))
@@ -239,23 +236,18 @@ if __name__ == '__main__':
 
     x_test = np.loadtxt("./code/x4pred.txt")
 
-    exp_index = 0
+    exp_index = 1
 
     # configurations
-    # iterations = 500
-    # reg_lambda = 0.1
-    # lr = 0.1
+    iterations = 10000
+    reg_lambda = 0.05
+    lr = 0.2
 
-    for iterations in range(5000, 10000, 1000):
-        for reg_lambda in [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2]:
-            for lr in [0.01, 0.05, 0.1, 0.2, 0.5, 1, 2]:
+    # create directory for writing results
+    path = "./predictions/" + str(exp_index)
+    os.makedirs(path, exist_ok=True)
 
-                # create directory for writing results
-                path = "./predictions/" + str(exp_index)
-                os.makedirs(path, exist_ok=True)
-
-                one_vs_all(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr)
-                all_pairs(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr)
-                random_mat(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr, 30)
-
-                exp_index += 1
+    for i in range(15):
+        one_vs_all(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr)
+        all_pairs(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr)
+        random_mat(x, y, x_val, y_val, x_test, path, iterations, reg_lambda, lr, 15)
